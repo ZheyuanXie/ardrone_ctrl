@@ -1,5 +1,5 @@
 ## Description
-An ROS node for Controlling Ar.Drone
+A ROS node for Controlling Ar.Drone
 
 ## Dependency
  - rospy
