@@ -11,6 +11,7 @@ from drone_status import DroneStatus
 from PySide import QtCore, QtGui
 from ardrone_gui import *
 
+from threading import Lock
 import sys
 import time,tf
 
@@ -18,12 +19,18 @@ CONNECTION_CHECK_PERIOD = 250 #ms
 GUI_UPDATE_PERIOD = 20 #ms
 
 class ControlMainWindow(QtGui.QMainWindow):
+    vrpndataArrive = QtCore.Signal()
+    dronedataArrive = QtCore.Signal()
     def __init__(self,parent = None):
         super(ControlMainWindow,self).__init__(parent)
         self.ui=Ui_MainWindow()
         self.ui.setupUi(self)
+        self.uilock = QtCore.QMutex()
 
         #Qt signal & slot connection
+
+        self.vrpndataArrive.connect(self.UpdateVrpndata)
+        self.dronedataArrive.connect(self.UpdataDronedata)
         self.ui.btn_takeoff.clicked.connect(self.takeoff)
         self.ui.btn_land.clicked.connect(self.land)
         self.ui.btn_emergency.clicked.connect(self.emergency)
@@ -36,7 +43,10 @@ class ControlMainWindow(QtGui.QMainWindow):
         self.ctrlmode = 1   # 0-manual, 1-automatic
         self.hoverpos = [-1500,500,1500]
         self.vrpnPos = [0,0,0,0,0,0]	# x,y,z,r,p,y from VRPN
-        manualCmd = Twist()
+        self.droneVel = [0,0,0]
+        self.image = None
+        self.imageLock = Lock()
+        self.manualCmd = Twist()
 
         #ROS
         rospy.init_node('ardrone_ctrl', anonymous=True)
@@ -60,22 +70,70 @@ class ControlMainWindow(QtGui.QMainWindow):
 # SUBSCRIBE CALLBACK
     def ReceiveVrpndata(self,data):
     	self.VrpnConnectedSinceTimer = True
-    	#print data
+        self.vrpnPos[0] = data.pose.position.x * 1000
+        self.vrpnPos[1] = data.pose.position.y * 1000
+        self.vrpnPos[2] = data.pose.position.z * 1000
+        quaternion = (
+            data.pose.orientation.x,
+            data.pose.orientation.y,
+            data.pose.orientation.z,
+            data.pose.orientation.w)
+        euler = tf.transformations.euler_from_quaternion(quaternion)
+        self.vrpnPos[3] = euler[0]
+        self.vrpnPos[4] = euler[1]
+        self.vrpnPos[5] = euler[2]
+        self.vrpndataArrive.emit()
+
+        #generate automatic control
+        ex = self.vrpnPos[0] - self.hoverpos[0]
+        ey = self.vrpnPos[2] - self.hoverpos[2]
+        kp = -1/2000.0
+        px = ex * kp
+        py = ey * kp
+        kd = 1/3000.0
+        t = Twist()
+        t.linear.x  = py - kd * self.droneVel[0] # pitch
+        t.linear.y  = px - kd * self.droneVel[1] # roll
+        t.angular.z = -self.vrpnPos[4] # yaw
+        self.pubCommand.publish(t)
+
+    def UpdateVrpndata(self):
+        self.ui.lb_vrpn_px.setText('%.3f'%self.vrpnPos[0])
+        self.ui.lb_vrpn_py.setText('%.3f'%self.vrpnPos[1])
+        self.ui.lb_vrpn_pz.setText('%.3f'%self.vrpnPos[2])
+        self.ui.lb_vrpn_ox.setText('%.3f'%self.vrpnPos[3])
+        self.ui.lb_vrpn_oy.setText('%.3f'%self.vrpnPos[4])
+        self.ui.lb_vrpn_oz.setText('%.3f'%self.vrpnPos[5])
 
     def ReceiveNavdata(self,data):
     	self.DroneConnectedSinceTimer = True
-    	#print data
+        self.droneVel[0] = data.vx
+        self.droneVel[1] = data.vy
+        self.droneVel[2] = data.vz
+        self.dronedataArrive.emit()
+
+    def UpdataDronedata(self):
+        self.ui.lb_navdata_vx.setText('%.3f'%self.droneVel[0])
+        self.ui.lb_navdata_vy.setText('%.3f'%self.droneVel[1])
+        self.ui.lb_navdata_vz.setText('%.3f'%self.droneVel[2])
 
     def ReceiveImage(self,data):
-    	pass
+    	self.imageLock.acquire()
+        try:
+            self.image = data
+        finally:
+            self.imageLock.release()
+
 
 # TIMER CALLBACK
     def ConnectionCallback(self):
-    	print 'Check Connection',self.isVrpnConnected,self.isDroneConnected
+    	# print 'Check Connection',self.isVrpnConnected,self.isDroneConnected
     	self.isVrpnConnected = self.VrpnConnectedSinceTimer
     	self.isDroneConnected = self.DroneConnectedSinceTimer
     	self.VrpnConnectedSinceTimer = False
     	self.DroneConnectedSinceTimer = False
+        self.statusBar().showMessage('VRPN:%s | DRONE:%s'%(str(self.isVrpnConnected),str(self.isDroneConnected)))
+
 
 # Commands
     def takeoff(self):

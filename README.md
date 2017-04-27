@@ -1,5 +1,5 @@
 ## Description
-A ROS node for Controlling Ar.Drone
+A ROS node for Controlling Parrot Ar.Drone 2.0
 
 ## Dependency
  - rospy

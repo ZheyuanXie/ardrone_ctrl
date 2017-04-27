@@ -58,11 +58,10 @@ def vrpn_callback(data):
    # controller.SetCommand(pctrl(ex), pctrl(ey), 0, 0)
     t = Twist()
     kd = 1/3000.0
-    t.linear.x  = pctrl(ey) - kd * vel[0] # pitch
+    t.linear.x  = pctrl(ey) + kd * vel[0] # pitch
     t.linear.y  = pctrl(ex) - kd * vel[1] # roll
     t.angular.z = -pose[4]
-    #t.linear.z = 0.001 *(hoverPose[1] - pose[1])
-    pubCommand.publish(t)
+
     #print t.linear.z
     #print 'x:%.3f,%.3f,%.3f\ny:%.3f,%.3f,%.3f'%(ex,pctrl(ex),kd*vel[0],ey,pctrl(ey),kd * vel[0])
     #controller.SendCommand()
