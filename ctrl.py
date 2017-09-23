@@ -7,6 +7,7 @@ from std_msgs.msg import Empty       	 # for land/takeoff/emergency
 from ardrone_autonomy.msg import Navdata # for receiving navdata feedback
 from drone_status import DroneStatus
 import time, sys
+sys.dont_write_bytecode = True
 import tf
 
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import sys
+sys.dont_write_bytecode = True
 import roslib
 import rospy
 from geometry_msgs.msg import PoseStamped # for vrpn data
@@ -10,9 +12,7 @@ from drone_status import DroneStatus
 
 from PySide import QtCore, QtGui
 from ardrone_gui import *
-
 from threading import Lock
-import sys
 import time,tf
 
 CONNECTION_CHECK_PERIOD = 250 #ms
@@ -53,10 +53,10 @@ class ControlMainWindow(QtGui.QMainWindow):
         self.subVideo   = rospy.Subscriber('/ardrone/image_raw',Image,self.ReceiveImage)
         self.subVrpn = rospy.Subscriber("/vrpn_client_node/drone1/pose", PoseStamped, self.ReceiveVrpndata)
         self.subNavdata = rospy.Subscriber('/ardrone/navdata',Navdata,self.ReceiveNavdata)
-        self.pubCommand = rospy.Publisher('/cmd_vel',Twist)
-        self.pubTakeoff = rospy.Publisher('/ardrone/takeoff',Empty)
-        self.pubLand = rospy.Publisher('/ardrone/land',Empty)
-        self.pubReset   = rospy.Publisher('/ardrone/reset',Empty)
+        self.pubCommand = rospy.Publisher('/cmd_vel',Twist,queue_size=1)
+        self.pubTakeoff = rospy.Publisher('/ardrone/takeoff',Empty,queue_size=1)
+        self.pubLand = rospy.Publisher('/ardrone/land',Empty,queue_size=1)
+        self.pubReset   = rospy.Publisher('/ardrone/reset',Empty,queue_size=1)
 
         #Connection Timer
         self.isVrpnConnected = False
